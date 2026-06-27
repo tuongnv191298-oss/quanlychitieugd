@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>AI Bank Pro</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:#0b1220;
+color:white;
+display:flex;
+}
+
+.sidebar{
+width:240px;
+background:#111827;
+height:100vh;
+padding:20px;
+}
+
+.menu button{
+width:100%;
+padding:12px;
+margin:8px 0;
+border:none;
+background:transparent;
+color:white;
+text-align:left;
+border-radius:8px;
+cursor:pointer;
+}
+
+.menu button:hover{background:#1f2937}
+
+.main{flex:1;padding:20px}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:15px;
+}
+
+.card{
+background:#111827;
+padding:15px;
+border-radius:12px;
+}
+
+.form{
+margin-top:20px;
+background:#111827;
+padding:15px;
+border-radius:12px;
+}
+
+input,select{
+padding:10px;
+margin:5px;
+border-radius:8px;
+border:none;
+}
+
+button.add{
+background:#22c55e;
+border:none;
+padding:10px;
+border-radius:8px;
+color:white;
+cursor:pointer;
+}
+
+table{
+width:100%;
+margin-top:20px;
+background:#111827;
+border-collapse:collapse;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid #1f2937;
+}
+
+.chart-box{
+margin-top:20px;
+background:#111827;
+padding:15px;
+border-radius:12px;
+}
+
+i{margin-right:6px}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+<h2>🏦 AI BANK</h2>
+
+<div class="menu">
+<button onclick="show('dash')"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
+<button onclick="show('add')"><i class="fa-solid fa-plus"></i> Thêm</button>
+<button onclick="show('list')"><i class="fa-solid fa-table-list"></i> Giao dịch</button>
+<button onclick="location.href='/logout'">
+<i class="fa-solid fa-right-from-bracket"></i> Logout
+</button>
+</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<h2>Xin chào {{ user }}</h2>
+
+<!-- DASHBOARD -->
+<div class="cards" id="dash">
+
+<div class="card">
+<i class="fa-solid fa-circle-up" style="color:#22c55e"></i>
+Thu
+<p id="income">0</p>
+</div>
+
+<div class="card">
+<i class="fa-solid fa-circle-down" style="color:#ef4444"></i>
+Chi
+<p id="expense">0</p>
+</div>
+
+<div class="card">
+<i class="fa-solid fa-wallet" style="color:#3b82f6"></i>
+Còn lại
+<p id="balance">0</p>
+</div>
+
+<div class="card">
+<i class="fa-solid fa-bullseye" style="color:#facc15"></i>
+Budget
+<input id="budget" placeholder="Budget">
+<button onclick="setBudget()">OK</button>
+<p id="budgetStatus"></p>
+</div>
+
+</div>
+
+<!-- CHART -->
+<div class="chart-box">
+<h3><i class="fa-solid fa-chart-pie"></i> Biểu đồ thu chi</h3>
+<canvas id="chart"></canvas>
+</div>
+
+<!-- FORM -->
+<div class="form" id="add" style="display:none">
+
+<h3><i class="fa-solid fa-plus"></i> Thêm giao dịch</h3>
+
+<input id="date" type="date">
+
+<select id="type">
+<option>Thu</option>
+<option>Chi</option>
+</select>
+
+<select id="category">
+<option>🍜 Ăn uống</option>
+<option>🚗 Di chuyển</option>
+<option>🏠 Nhà</option>
+<option>🛍️ Mua sắm</option>
+<option>🎮 Giải trí</option>
+<option>💊 Y tế</option>
+<option>💼 Lương</option>
+<option>📚 Giáo dục</option>
+<option>🎁 Quà tặng</option>
+<option>💻 Freelance</option>
+</select>
+
+<select id="quickMoney" onchange="setMoney()">
+<option value="">💵 Tiền nhanh</option>
+<option value="10000">10K</option>
+<option value="50000">50K</option>
+<option value="100000">100K</option>
+<option value="200000">200K</option>
+<option value="500000">500K</option>
+<option value="1000000">1M</option>
+</select>
+
+<input id="amount" placeholder="Số tiền">
+<input id="note" placeholder="Ghi chú">
+
+<button class="add" onclick="save()">
+<i class="fa-solid fa-floppy-disk"></i> Lưu
+</button>
+
+</div>
+
+<!-- TABLE -->
+<table id="list" style="display:none">
+<thead>
+<tr>
+<th>Date</th>
+<th>Type</th>
+<th>Category</th>
+<th>Money</th>
+<th>Note</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+</div>
+
+<script>
+
+let editId = null;
+let budgetLimit = 0;
+let chart;
+
+/* TAB */
+function show(t){
+dash.style.display = t==="dash"?"grid":"none";
+add.style.display = t==="add"?"block":"none";
+list.style.display = t==="list"?"table":"none";
+}
+
+/* QUICK MONEY */
+function setMoney(){
+amount.value = quickMoney.value;
+}
+
+/* BUDGET */
+function setBudget(){
+budgetLimit = +budget.value || 0;
+}
+
+/* LOAD DATA */
+async function load(){
+let r = await fetch("/data");
+let d = await r.json();
+
+income.innerText = d.income;
+expense.innerText = d.expense;
+balance.innerText = d.balance;
+
+/* budget */
+if(budgetLimit>0){
+budgetStatus.innerText =
+d.expense > budgetLimit ? "⚠ Vượt budget" : "✔ OK";
+budgetStatus.style.color =
+d.expense > budgetLimit ? "red" : "lime";
+}
+
+/* table */
+let tb = document.querySelector("tbody");
+tb.innerHTML="";
+
+d.data.forEach(x=>{
+tb.innerHTML += `
+<tr>
+<td>${x.date}</td>
+<td>${x.type}</td>
+<td>${x.category}</td>
+<td>${x.amount}</td>
+<td>${x.note}</td>
+<td>
+<button onclick="edit(${x.id})"><i class="fa fa-pen"></i></button>
+<button onclick="del(${x.id})"><i class="fa fa-trash"></i></button>
+</td>
+</tr>`;
+});
+
+/* chart */
+if(chart) chart.destroy();
+
+chart = new Chart(document.getElementById("chart"),{
+type:"doughnut",
+data:{
+labels:["Thu","Chi"],
+datasets:[{
+data:[d.income,d.expense],
+backgroundColor:["#22c55e","#ef4444"]
+}]
+}
+});
+}
+
+/* SAVE */
+async function save(){
+let data={
+date:date.value,
+type:type.value,
+category:category.value,
+amount:+amount.value,
+note:note.value
+};
+
+let url = editId?"/update/"+editId:"/add";
+
+await fetch(url,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify(data)
+});
+
+editId=null;
+load();
+show('list');
+}
+
+/* DELETE */
+async function del(id){
+await fetch("/delete/"+id,{method:"POST"});
+load();
+}
+
+/* EDIT */
+async function edit(id){
+let r = await fetch("/data");
+let d = await r.json();
+
+let x = d.data.find(i=>i.id==id);
+
+date.value = x.date;
+type.value = x.type;
+category.value = x.category;
+amount.value = x.amount;
+note.value = x.note;
+
+editId = id;
+show('add');
+}
+
+window.onload=()=>{
+show('dash');
+load();
+}
+
+</script>
+
+</body>
+</html>
